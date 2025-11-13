@@ -177,16 +177,43 @@ export default function CopilotKitPage() {
               minHeight: "60px",
             }}>
               {status === "complete" && result && (
-                <div style={{ marginBottom: "8px", fontWeight: "bold", color: "#10b981" }}>
+                <div style={{
+                  marginBottom: "12px",
+                  paddingBottom: "12px",
+                  borderBottom: "2px solid #e5e7eb",
+                  fontWeight: "bold",
+                  color: "#10b981",
+                  fontSize: "1.1em"
+                }}>
                   ✅ {result}
                 </div>
               )}
               {status === "executing" && workflowState.events.length === 0 && "⏳ 実行中..."}
-              {workflowState.events.map((event, idx) => (
-                <div key={idx} style={{ marginBottom: "4px", fontSize: "0.9em" }}>
-                  {event}
+              {workflowState.events.length > 0 && (
+                <div>
+                  <div style={{
+                    fontWeight: "600",
+                    marginBottom: "8px",
+                    color: "#6b7280",
+                    fontSize: "0.85em",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em"
+                  }}>
+                    📋 実行ログ:
+                  </div>
+                  {workflowState.events.map((event, idx) => (
+                    <div key={idx} style={{
+                      marginBottom: "6px",
+                      fontSize: "0.9em",
+                      paddingLeft: "8px",
+                      borderLeft: "3px solid #e5e7eb",
+                      lineHeight: "1.6"
+                    }}>
+                      {event}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
               {workflowState.isStreaming && <span className="animate-pulse">▊</span>}
             </div>
           </div>
@@ -281,7 +308,11 @@ export default function CopilotKitPage() {
 
         setWorkflowState({ events, isStreaming: false });
 
-        return `Workflow完了: ${events.length}個のイベント`;
+        // イベントの統計を計算
+        const startEvents = events.filter(e => e.includes('開始')).length;
+        const completeEvents = events.filter(e => e.includes('完了')).length;
+
+        return `Workflow実行完了: ${startEvents}ステップ実行、${completeEvents}ステップ完了`;
       } catch (error) {
         console.error("Error calling workflow:", error);
         setWorkflowState({ events: ["❌ エラーが発生しました"], isStreaming: false });
