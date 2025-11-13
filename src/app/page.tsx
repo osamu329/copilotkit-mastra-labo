@@ -181,11 +181,10 @@ export default function CopilotKitPage() {
                   marginBottom: "12px",
                   paddingBottom: "12px",
                   borderBottom: "2px solid #e5e7eb",
-                  fontWeight: "bold",
-                  color: "#10b981",
-                  fontSize: "1.1em"
+                  whiteSpace: "pre-wrap",
+                  lineHeight: "1.6"
                 }}>
-                  ✅ {result}
+                  {result}
                 </div>
               )}
               {status === "executing" && workflowState.events.length === 0 && "⏳ 実行中..."}
@@ -312,7 +311,15 @@ export default function CopilotKitPage() {
         const startEvents = events.filter(e => e.includes('開始')).length;
         const completeEvents = events.filter(e => e.includes('完了')).length;
 
-        return `Workflow実行完了: ${startEvents}ステップ実行、${completeEvents}ステップ完了`;
+        // 詳細なやりとりを result に含める
+        const detailedResult = [
+          `✅ Workflow実行完了: ${startEvents}ステップ実行、${completeEvents}ステップ完了`,
+          '',
+          '📋 実行ログ:',
+          ...events.map((event, idx) => `${idx + 1}. ${event}`)
+        ].join('\n');
+
+        return detailedResult;
       } catch (error) {
         console.error("Error calling workflow:", error);
         setWorkflowState({ events: ["❌ エラーが発生しました"], isStreaming: false });
