@@ -43,7 +43,9 @@ export async function POST(
   console.log('📍 [VNEXT] POST /api/workflows/{workflowName}/stream - workflowName:', workflowName);
 
   try {
-    const workflow = mastra.getWorkflow(workflowName);
+    // 動的ルートパラメータを型安全に扱うため、型アサーションを使用
+    type MastraWorkflowName = Parameters<typeof mastra.getWorkflow>[0];
+    const workflow = mastra.getWorkflow(workflowName as MastraWorkflowName);
     console.log('🔵 [VNEXT] Creating workflow run...');
     const run = await workflow.createRunAsync();
 
@@ -153,7 +155,7 @@ export async function POST(
               result,
               status,
               usage,
-              traceId: stream.traceId
+              traceId: (stream as any).traceId // traceId は型定義に含まれていないが、実行時に存在する可能性がある
             })}\n\n`
           ));
 

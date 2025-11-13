@@ -11,7 +11,9 @@ export async function POST(
   console.log('📍 POST /api/agents/{agentName}/stream - agentName:', agentName);
 
   try {
-    const agent = mastra.getAgent(agentName);
+    // 動的ルートパラメータを型安全に扱うため、型アサーションを使用
+    type MastraAgentName = Parameters<typeof mastra.getAgent>[0];
+    const agent = mastra.getAgent(agentName as MastraAgentName);
     console.log('🟢 Calling agent.stream on server side...');
     const streamResult = await agent.stream(body.messages);
 

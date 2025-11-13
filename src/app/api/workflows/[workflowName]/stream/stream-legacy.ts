@@ -37,7 +37,9 @@ export async function POST(
   // console.log('📍 [LEGACY] POST /api/workflows/{workflowName}/stream - workflowName:', workflowName);
 
   try {
-    const workflow = mastra.getWorkflow(workflowName);
+    // 動的ルートパラメータを型安全に扱うため、型アサーションを使用
+    type MastraWorkflowName = Parameters<typeof mastra.getWorkflow>[0];
+    const workflow = mastra.getWorkflow(workflowName as MastraWorkflowName);
     // console.log('🔵 [LEGACY] Creating workflow run...');
     const run = await workflow.createRunAsync();
 

@@ -32,11 +32,10 @@ export default function CopilotKitPage() {
   });
 
   // 🤖 Frontend Tool: Call Sub Agent directly from frontend with streaming
-  // 各呼び出しごとに独立したステート管理
-  const [streamingStates, setStreamingStates] = useState<Record<string, { text: string; isStreaming: boolean }>>({});
+  const [streamingState, setStreamingState] = useState<{ text: string; isStreaming: boolean }>({ text: "", isStreaming: false });
 
   // 🔄 Frontend Tool: Call Workflow directly from frontend with streaming
-  const [workflowStates, setWorkflowStates] = useState<Record<string, { events: string[]; isStreaming: boolean }>>({});
+  const [workflowState, setWorkflowState] = useState<{ events: string[]; isStreaming: boolean }>({ events: [], isStreaming: false });
 
   useCopilotAction({
     name: "callSubAgentDirectly",
@@ -49,15 +48,13 @@ export default function CopilotKitPage() {
         required: true,
       },
     ],
-    render: ({ args, status, result, actionExecutionId }) => {
-      const callState = streamingStates[actionExecutionId] || { text: "", isStreaming: false };
-
+    render: ({ args, status, result }) => {
       // 実行中、ストリーミング中、または完了時に表示
-      if (status === "executing" || status === "complete" || callState.isStreaming || callState.text) {
+      if (status === "executing" || status === "complete" || streamingState.isStreaming || streamingState.text) {
         // 完了時は result を使用、それ以外はストリーミング中のテキスト
         const displayText = status === "complete" && result
           ? result
-          : (callState.text || "⏳ 考えています...");
+          : (streamingState.text || "⏳ 考えています...");
 
         return (
           <div style={{
@@ -82,20 +79,17 @@ export default function CopilotKitPage() {
               minHeight: "60px",
             }}>
               {displayText}
-              {callState.isStreaming && <span className="animate-pulse">▊</span>}
+              {streamingState.isStreaming && <span className="animate-pulse">▊</span>}
             </div>
           </div>
         );
       }
-      return null;
+      return <></>;
     },
-    handler: async ({ message, actionExecutionId }) => {
+    handler: async ({ message }) => {
       try {
-        // この呼び出し用のステートを初期化
-        setStreamingStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { text: "", isStreaming: true }
-        }));
+        // ステートを初期化
+        setStreamingState({ text: "", isStreaming: true });
 
         // ブラウザ環境で動的にMastraClientを初期化
         // NOTE: MastraClient automatically adds /api/ prefix
@@ -127,29 +121,20 @@ export default function CopilotKitPage() {
             if (chunk.type === 'text-delta') {
               fullText += chunk.payload.text;
               console.log("🔵 Text accumulated:", fullText);
-              setStreamingStates(prev => ({
-                ...prev,
-                [actionExecutionId]: { text: fullText, isStreaming: true }
-              }));
+              setStreamingState({ text: fullText, isStreaming: true });
             }
           },
         });
 
         console.log("🔵 Stream finished, fullText:", fullText);
 
-        setStreamingStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { text: fullText, isStreaming: false }
-        }));
+        setStreamingState({ text: fullText, isStreaming: false });
 
         console.log("🔵 Returning fullText:", fullText);
         return fullText;
       } catch (error) {
         console.error("Error calling subAgent:", error);
-        setStreamingStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { text: "", isStreaming: false }
-        }));
+        setStreamingState({ text: "", isStreaming: false });
         return "エラーが発生しました";
       }
     },
@@ -167,9 +152,7 @@ export default function CopilotKitPage() {
         required: true,
       },
     ],
-    render: ({ args, status, result, actionExecutionId }) => {
-      const workflowState = workflowStates[actionExecutionId] || { events: [], isStreaming: false };
-
+    render: ({ args, status, result }) => {
       if (status === "executing" || status === "complete" || workflowState.isStreaming || workflowState.events.length > 0) {
         return (
           <div style={{
@@ -193,7 +176,12 @@ export default function CopilotKitPage() {
               borderRadius: "4px",
               minHeight: "60px",
             }}>
-              {workflowState.events.length === 0 && "⏳ 実行中..."}
+              {status === "complete" && result && (
+                <div style={{ marginBottom: "8px", fontWeight: "bold", color: "#10b981" }}>
+                  ✅ {result}
+                </div>
+              )}
+              {status === "executing" && workflowState.events.length === 0 && "⏳ 実行中..."}
               {workflowState.events.map((event, idx) => (
                 <div key={idx} style={{ marginBottom: "4px", fontSize: "0.9em" }}>
                   {event}
@@ -204,14 +192,11 @@ export default function CopilotKitPage() {
           </div>
         );
       }
-      return null;
+      return <></>;
     },
-    handler: async ({ value, actionExecutionId }) => {
+    handler: async ({ value }) => {
       try {
-        setWorkflowStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { events: [], isStreaming: true }
-        }));
+        setWorkflowState({ events: [], isStreaming: true });
 
         // Workflowを呼び出すためのfetch
         const response = await fetch(`${window.location.origin}/api/workflows/testWorkflow/stream`, {
@@ -284,10 +269,7 @@ export default function CopilotKitPage() {
 
                   // ⭐ flushSyncで即座にUIを更新
                   flushSync(() => {
-                    setWorkflowStates(prev => ({
-                      ...prev,
-                      [actionExecutionId]: { events: [...events], isStreaming: true }
-                    }));
+                    setWorkflowState({ events: [...events], isStreaming: true });
                   });
                 }
               } catch (e) {
@@ -297,18 +279,12 @@ export default function CopilotKitPage() {
           }
         }
 
-        setWorkflowStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { events, isStreaming: false }
-        }));
+        setWorkflowState({ events, isStreaming: false });
 
         return `Workflow完了: ${events.length}個のイベント`;
       } catch (error) {
         console.error("Error calling workflow:", error);
-        setWorkflowStates(prev => ({
-          ...prev,
-          [actionExecutionId]: { events: ["❌ エラーが発生しました"], isStreaming: false }
-        }));
+        setWorkflowState({ events: ["❌ エラーが発生しました"], isStreaming: false });
         return "エラーが発生しました";
       }
     },
