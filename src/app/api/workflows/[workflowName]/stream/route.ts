@@ -23,9 +23,11 @@
 // ============================================================================
 
 // Option 1: Legacy stream() API
-export { POST } from './stream-legacy';
+// export { POST } from './stream-legacy';
+// ⚠️ stream() は writer.write() のカスタムイベントを送信しない
 
-// Option 2: VNext streamVNext() API
-// export { POST } from './stream-vnext';
+// Option 2: VNext streamVNext() API (推奨)
+export { POST } from './stream-vnext';
+// ✅ streamVNext() は writer.write() のカスタムイベントを workflow-step-output として送信
 
 // ============================================================================

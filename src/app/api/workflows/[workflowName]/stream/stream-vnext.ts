@@ -16,6 +16,22 @@ import { NextRequest } from "next/server";
  *   - stream.traceId?: string
  * - More ergonomic API - no need to access .stream property
  * - Enhanced capabilities - will eventually replace stream()
+ *
+ * Test Results (2025-11-14):
+ * ✅ Successfully streams workflow events
+ * ✅ Events received (8 chunks):
+ *    - workflow-start: { type, runId, from: 'WORKFLOW', payload: { workflowId } }
+ *    - workflow-step-start: { type, runId, from: 'WORKFLOW', payload: { stepName, id, stepCallId, payload, startedAt, status } }
+ *    - workflow-step-output: { type, runId, from: 'USER', payload: { output, stepName } } ← Custom writer.write() events!
+ *    - workflow-step-result: { type, runId, from: 'WORKFLOW', payload: { stepName, id, stepCallId, status, output, endedAt } }
+ *    - workflow-finish: { type, runId, from: 'WORKFLOW', payload: { workflowStatus, output: { usage }, metadata } }
+ * ✅ stream.result returns: { status, steps, input, result, traceId: undefined }
+ * ✅ stream.status returns: 'success'
+ * ✅ stream.usage returns: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+ * ✅ writer.write() custom events ARE received via workflow-step-output!
+ *    - Custom events nested in: chunk.payload.output
+ *    - from: 'USER' indicates custom event
+ * ⚠️  traceId is still undefined (may require additional configuration)
  */
 export async function POST(
   req: NextRequest,
@@ -43,26 +59,92 @@ export async function POST(
         try {
           // Direct iteration - stream is itself iterable
           for await (const chunk of stream) {
-            console.log('🔵 [VNEXT] Workflow chunk:', chunk);
+            // console.log('🔵 [VNEXT] Workflow chunk:', chunk);
+            //
+            // ========== 実際の出力（テスト日: 2025-11-14）==========
+            // ✅ 合計8チャンク受信:
+            //
+            // チャンク1: { type: 'workflow-start', runId: 'eeec96d9-...', from: 'WORKFLOW', payload: { workflowId: 'testWorkflow' } }
+            //
+            // チャンク2: { type: 'workflow-step-start', runId: 'eeec96d9-...', from: 'WORKFLOW',
+            //   payload: { stepName: 'step1', id: 'step1', stepCallId: '0059d8a0-...', payload: { value: 'こんにちは' }, startedAt: 1763064408999, status: 'running' } }
+            //
+            // チャンク3: { type: 'workflow-step-output', runId: 'eeec96d9-...', from: 'USER',
+            //   payload: { output: { type: 'step-progress', message: 'step1を開始しました' }, runId: 'eeec96d9-...', stepName: 'step1' } }
+            //   ✅ writer.write() のカスタムイベント！
+            //
+            // チャンク4: { type: 'workflow-step-result', runId: 'eeec96d9-...', from: 'WORKFLOW',
+            //   payload: { stepName: 'step1', id: 'step1', stepCallId: '0059d8a0-...', status: 'success', output: { result: 'Step1: こんにちは' }, endedAt: 1763064409003 } }
+            //
+            // チャンク5: { type: 'workflow-step-start', runId: 'eeec96d9-...', from: 'WORKFLOW',
+            //   payload: { stepName: 'step2', id: 'step2', stepCallId: '214bb639-...', payload: { result: 'Step1: こんにちは' }, startedAt: 1763064409003, status: 'running' } }
+            //
+            // チャンク6: { type: 'workflow-step-output', runId: 'eeec96d9-...', from: 'USER',
+            //   payload: { output: { type: 'step-progress', message: 'step2を終了しました' }, runId: 'eeec96d9-...', stepName: 'step2' } }
+            //   ✅ writer.write() のカスタムイベント！
+            //
+            // チャンク7: { type: 'workflow-step-result', runId: 'eeec96d9-...', from: 'WORKFLOW',
+            //   payload: { stepName: 'step2', id: 'step2', stepCallId: '214bb639-...', status: 'success', output: { finalResult: 'Step1: こんにちは -> Step2完了' }, endedAt: 1763064409004 } }
+            //
+            // チャンク8: { type: 'workflow-finish', runId: 'eeec96d9-...', from: 'WORKFLOW',
+            //   payload: { workflowStatus: 'success', output: { usage: {...} }, metadata: {} } }
+            //
+            // 重要な発見:
+            // ✅ writer.write() イベントは 'workflow-step-output' タイプで受信
+            // ✅ カスタムイベントは chunk.payload.output からアクセス可能
+            // ✅ 'from' フィールド = 'USER' でカスタムイベント、'WORKFLOW' でシステムイベント
+            // ✅ 全チャンクに runId が含まれており、相関が可能
+            // ======================================================
 
             // Format as SSE: data: {json}\n\n
             const sseChunk = `data: ${JSON.stringify(chunk)}\n\n`;
             controller.enqueue(encoder.encode(sseChunk));
           }
 
-          // Access additional promises (optional)
+          // 追加のプロミスにアクセス（オプション）
           const [result, status, usage] = await Promise.all([
             stream.result,
             stream.status,
             stream.usage
           ]);
 
-          console.log('🔵 [VNEXT] Final result:', result);
-          console.log('🔵 [VNEXT] Final status:', status);
-          console.log('🔵 [VNEXT] Usage:', usage);
-          if (stream.traceId) {
-            console.log('🔵 [VNEXT] Trace ID:', stream.traceId);
-          }
+          // console.log('🔵 [VNEXT] Final result:', result);
+          // ========== 実際の出力（stream.result）==========
+          // {
+          //   status: 'success',
+          //   steps: {
+          //     input: { value: 'こんにちは' },
+          //     step1: {
+          //       payload: { value: 'こんにちは' },
+          //       startedAt: 1763064408999,
+          //       status: 'success',
+          //       output: { result: 'Step1: こんにちは' },
+          //       endedAt: 1763064409003
+          //     },
+          //     step2: {
+          //       payload: { result: 'Step1: こんにちは' },
+          //       startedAt: 1763064409003,
+          //       status: 'success',
+          //       output: { finalResult: 'Step1: こんにちは -> Step2完了' },
+          //       endedAt: 1763064409004
+          //     }
+          //   },
+          //   input: { value: 'こんにちは' },
+          //   result: { finalResult: 'Step1: こんにちは -> Step2完了' },
+          //   traceId: undefined  // ⚠️ 未設定（環境設定が必要？）
+          // }
+          // ======================================================
+
+          // console.log('🔵 [VNEXT] Final status:', status);
+          // 出力: 'success'
+
+          // console.log('🔵 [VNEXT] Usage:', usage);
+          // 出力: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }
+
+          // if (stream.traceId) {
+          //   console.log('🔵 [VNEXT] Trace ID:', stream.traceId);
+          // }
+          // traceId は undefined のため実行されず
 
           // Send additional metadata
           controller.enqueue(encoder.encode(
