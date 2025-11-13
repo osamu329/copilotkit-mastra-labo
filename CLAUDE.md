@@ -4,7 +4,7 @@
 
 ## 📚 ドキュメント
 
-詳細な開発ノウハウは **[know-how.md](./know-how.md)** を参照してください。
+詳細な開発ノウハウは **[know-how/](./know-how/)** ディレクトリを参照してください。
 
 ### know-how.md の内容
 
@@ -120,6 +120,77 @@ execute: async ({ context, mastra, writer }) => {
 - [Mastra Tool Streaming Documentation](https://github.com/mastra-ai/mastra/blob/main/docs/src/content/en/docs/streaming/tool-streaming.mdx)
 - [CopilotKit useCopilotAction Reference](https://docs.copilotkit.ai/reference/hooks/useCopilotAction)
 - [CopilotKit Generative UI Guide](https://docs.copilotkit.ai/concepts/generative-ui)
+
+---
+
+## 📖 ドキュメント管理方針【重要】
+
+### know-how ディレクトリ構造
+
+開発ノウハウは `know-how/` ディレクトリで管理し、セクションごとにファイルを分割する：
+
+```
+know-how/
+├── index.md                        # 全体サマリ（必読）
+├── sub-agent-visualization.md      # Sub-Agent可視化の試行錯誤
+├── sub-agent-setup.md              # Sub-Agent設定方法
+├── frontend-agent-streaming.md     # Agent直接呼び出し
+├── frontend-workflow-streaming.md  # Workflow直接呼び出し
+├── generative-ui.md                # Generative UI実装方法
+├── workflow-streaming-api.md       # Streaming API詳細調査
+└── workflow-ui-issues.md           # UI更新問題とトラブルシューティング
+```
+
+### index.md のサマリ要件
+
+`know-how/index.md` には各セクションのサマリを記載する。サマリは以下を満たすこと：
+
+1. **過不足ない情報量**
+   - セクションの要点を簡潔に記載
+   - 重要な結論や推奨事項を明記
+   - 具体的なコード例は最小限に
+
+2. **判断可能な詳しさ**
+   - サマリを読んで「これは自分が必要な情報か」を判断できる
+   - 無駄にセクションファイルを開かなくて済む程度に詳しく
+   - 「何が解決されたか」「何が推奨されるか」を明確に
+
+3. **参照情報の明記**
+   - 詳細を確認したい場合のファイル名と行数
+   - 関連する他セクションへのリンク
+
+### ドキュメント更新時のルール
+
+1. **新しい知見を得たとき**
+   - 該当するセクションファイルに追記
+   - index.md のサマリも更新（必要に応じて）
+
+2. **大きなセクション（500行以上）ができたとき**
+   - さらに細かいファイルに分割を検討
+   - index.md に新しいセクションのサマリを追加
+
+3. **古い情報が無効になったとき**
+   - ❌ 削除しない
+   - ⚠️ 「非推奨」マークを付けて残す
+   - 理由と代替手段を明記
+
+### サマリの書き方（テンプレート）
+
+```markdown
+### セクション名
+
+**要点:**
+- この問題/調査の結論を1-2行で
+
+**推奨される方法:**
+- ✅ 正しいアプローチ（簡潔に）
+- ❌ 避けるべきアプローチ（理由付き）
+
+**重要な発見:**
+- 特に重要な学びを箇条書き
+
+**詳細:** [ファイル名.md](./ファイル名.md) の XX行目〜
+```
 
 ---
 
