@@ -98,8 +98,9 @@ export default function CopilotKitPage() {
         }));
 
         // ブラウザ環境で動的にMastraClientを初期化
+        // NOTE: MastraClient automatically adds /api/ prefix
         const mastraClient = new MastraClient({
-          baseUrl: `${window.location.origin}/api/mastra`,
+          baseUrl: window.location.origin,
         });
 
         const agent = mastraClient.getAgent("subAgent");
@@ -213,7 +214,7 @@ export default function CopilotKitPage() {
         }));
 
         // Workflowを呼び出すためのfetch
-        const response = await fetch(`${window.location.origin}/api/mastra/workflows/testWorkflow/stream`, {
+        const response = await fetch(`${window.location.origin}/api/workflows/testWorkflow/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -328,7 +329,7 @@ export default function CopilotKitPage() {
     handler: async ({ value }) => {
       try {
         // Workflowを呼び出すためのfetch
-        const response = await fetch(`${window.location.origin}/api/mastra/workflows/testWorkflow/stream`, {
+        const response = await fetch(`${window.location.origin}/api/workflows/testWorkflow/stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
