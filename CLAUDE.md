@@ -123,6 +123,38 @@ execute: async ({ context, mastra, writer }) => {
 
 ---
 
+## 🔍 ライブラリ調査の優先順位【重要】
+
+ライブラリのAPI、使い方、パラメータなどを調査する際は、**必ず以下の優先順位**で実施すること：
+
+### 優先度1: Context7 エージェント（最優先）
+- CopilotKit、Mastra などのライブラリ調査は **必ず context7 エージェント** を使用
+- Task ツールで `subagent_type: "context7"` を指定
+- WebFetch や WebSearch よりも **常に優先**
+
+### 優先度2: WebSearch
+- context7 でカバーされていないライブラリや一般的な情報
+
+### 優先度3: WebFetch
+- 特定のURLの内容を取得する必要がある場合のみ
+
+### ❌ やってはいけないこと
+- ライブラリのAPI調査で WebFetch を直接使う
+- context7 エージェントの存在を忘れる
+- ユーザーに指摘されてから気づく
+
+### ✅ 正しい例
+```typescript
+// CopilotKitの useCopilotAction について調査したい
+// → Task ツールで context7 エージェントを使う
+Task({
+  subagent_type: "context7",
+  prompt: "CopilotKit の useCopilotAction の render 関数の status パラメータについて調査してください。"
+})
+```
+
+---
+
 ## 📝 プロジェクト構成
 
 ```
