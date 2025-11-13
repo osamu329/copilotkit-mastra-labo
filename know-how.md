@@ -1566,3 +1566,101 @@ Agent版のように `processDataStream` が Workflow でもサポートされ�
 **一時的な対処:**
 - `appendMessage` を使って進捗をチャットに流す
 - 完璧ではないが、リアルタイム表示は可能
+
+---
+
+### 🐛 追加の問題: `status="complete"` なのに「実行中」と表示される（2025-11-14）
+
+#### 現象
+
+Workflow 実行後、`status` は `"complete"` になっているのに、UI には「⏳ 実行中...」と表示されたままになる。
+
+#### 原因
+
+**問題のコード（page.tsx:196）:**
+```typescript
+render: ({ args, status, result, actionExecutionId }) => {
+  const workflowState = workflowStates[actionExecutionId] || { events: [], isStreaming: false };
+
+  return (
+    <div>
+      {workflowState.events.length === 0 && "⏳ 実行中..."}  // ← status を見ていない！
+      {workflowState.events.map(...)}
+    </div>
+  );
+}
+```
+
+**タイミングの問題:**
+
+1. **handler 実行完了**（page.tsx:300-303）:
+   ```typescript
+   setWorkflowStates(prev => ({
+     ...prev,
+     [actionExecutionId]: { events, isStreaming: false }
+   }));  // ← 非同期で処理される
+
+   return `Workflow完了`;  // ← すぐに return
+   ```
+
+2. **CopilotKit が render を再実行:**
+   - `status = "complete"` に変更
+   - **しかし** `setWorkflowStates` はまだ反映されていない
+   - `workflowState.events.length === 0` のまま
+
+3. **結果:**
+   - `status === "complete"` だが
+   - `workflowState.events.length === 0` なので
+   - 「⏳ 実行中...」と表示される
+
+#### 根本原因
+
+**React の状態更新は非同期:**
+- `setWorkflowStates()` を呼んでも、即座には反映されない
+- handler の return 後、render が再実行されるが、その時点ではまだ古い状態
+
+**render 関数のロジックが status を無視:**
+- `status` を見ずに `workflowState.events.length` だけで判断
+- `status === "complete"` でも「実行中」と表示される
+
+#### 解決策
+
+**Option 1: status を優先する**
+```typescript
+{status === "executing" && workflowState.events.length === 0 && "⏳ 実行中..."}
+{status === "complete" && workflowState.events.length === 0 && "✅ 完了（イベントなし）"}
+{workflowState.events.map(...)}
+```
+
+**Option 2: result を表示する**
+```typescript
+{status === "complete" && result && (
+  <div>✅ {result}</div>  // ← "Workflow完了: 8個のイベント"
+)}
+{status === "executing" && workflowState.events.length === 0 && "⏳ 実行中..."}
+{workflowState.events.map(...)}
+```
+
+**Option 3: useEffect で状態同期**
+```typescript
+useEffect(() => {
+  // status が complete になったら強制的に再レンダリング
+  if (status === "complete") {
+    forceUpdate();
+  }
+}, [status]);
+```
+
+#### 重要な教訓
+
+1. **`status` は CopilotKit が管理する信頼できる値**
+   - handler の実行状態を正確に反映
+   - `"executing"` → `"complete"` の遷移は確実
+
+2. **ユーザーが管理する状態（useState）は非同期**
+   - `setState` は即座に反映されない
+   - render 関数で参照する際は注意が必要
+
+3. **表示ロジックは `status` を最優先すべき**
+   - `status === "complete"` なら完了と表示
+   - ユーザー管理の状態はあくまで補助情報
