@@ -4,17 +4,18 @@ import {
   InMemoryAgentRunner,
 } from "@copilotkitnext/runtime";
 import { handle } from "hono/vercel";
-import { BuiltInAgent } from "@copilotkitnext/agent";
+import { MastraAgent } from "@/lib/ag-ui-mastra";
+import { mastra } from "@/lib/mastra";
 
-const agent = new BuiltInAgent({
-  model: "openai/gpt-4o-mini",
-  prompt:
-    "You are a helpful AI assistant. Answer user questions concisely.",
+const aguiAgent = new MastraAgent({
+  agentId: "data-agent",
+  agent: mastra.getAgent("data-agent"),
+  resourceId: "default",
 });
 
 const honoRuntime = new CopilotRuntime({
   agents: {
-    default: agent,
+    default: aguiAgent,
   },
   runner: new InMemoryAgentRunner(),
 });

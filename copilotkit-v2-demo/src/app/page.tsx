@@ -3,11 +3,11 @@
 import {
   CopilotChat,
   CopilotKitProvider,
+  useDefaultRenderTool,
 } from "@copilotkitnext/react";
 import type { ReactActivityMessageRenderer } from "@copilotkitnext/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { z } from "zod";
-import { DemoAgent } from "./demo-agent";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +126,11 @@ function WorkflowStepCard({
   );
 }
 
+function DefaultToolRenderer() {
+  useDefaultRenderTool();
+  return null;
+}
+
 /** Prefills the CopilotChat textarea with "test" on mount */
 function ChatWithPrefill() {
   useEffect(() => {
@@ -136,7 +141,7 @@ function ChatWithPrefill() {
         window.HTMLTextAreaElement.prototype,
         "value",
       )?.set;
-      nativeSetter?.call(textarea, "test");
+      nativeSetter?.call(textarea, "query climate change");
       textarea.dispatchEvent(new Event("input", { bubbles: true }));
     }, 300);
     return () => clearTimeout(timer);
@@ -146,8 +151,6 @@ function ChatWithPrefill() {
 }
 
 export default function Home() {
-  const demoAgent = useMemo(() => new DemoAgent(), []);
-
   const activityRenderers = useMemo<ReactActivityMessageRenderer<any>[]>(
     () => [
       {
@@ -168,10 +171,11 @@ export default function Home() {
 
   return (
     <CopilotKitProvider
-      agents__unsafe_dev_only={{ default: demoAgent }}
+      runtimeUrl="/api/copilotkit"
       renderActivityMessages={activityRenderers}
       showDevConsole={true}
     >
+      <DefaultToolRenderer />
       <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
         <header
           style={{
