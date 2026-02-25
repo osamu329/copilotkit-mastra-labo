@@ -35,11 +35,19 @@ export interface MastraAgentConfig extends AgentConfig {
   requestContext?: RequestContext;
 }
 
+interface DataWorkflowEvent {
+  workflowId: string;
+  runId: string;
+  eventType: string;
+  payload: Record<string, any>;
+}
+
 interface MastraAgentStreamOptions {
   onTextPart?: (text: string) => void;
   onFinishMessagePart?: () => void;
   onToolCallPart?: (streamPart: { toolCallId: string; toolName: string; args: any }) => void;
   onToolResultPart?: (streamPart: { toolCallId: string; result: any }) => void;
+  onDataWorkflowEvent?: (event: DataWorkflowEvent) => void;
   onError?: (error: Error) => void;
   onRunFinished?: () => Promise<void>;
 }
@@ -140,8 +148,125 @@ export class MastraAgent extends AbstractAgent {
           }
         }
 
+        // State for tracking workflow activity
+        let workflowActivityId: string | null = null;
+        let workflowStepIndex = 0;
+
         try {
           await this.streamMastraAgent(input, {
+            onDataWorkflowEvent: (event) => {
+              // Lazily create a stable messageId per workflow run
+              if (!workflowActivityId) {
+                workflowActivityId = `wf-${event.runId}`;
+              }
+
+              switch (event.eventType) {
+                case "workflow-start":
+                  workflowStepIndex = 0;
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      status: "started",
+                    },
+                  } as BaseEvent);
+                  break;
+
+                case "workflow-step-start":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      currentStepId: event.payload?.id,
+                      stepIndex: workflowStepIndex,
+                      stepStatus: "running",
+                      status: "running",
+                    },
+                  } as BaseEvent);
+                  break;
+
+                case "workflow-step-result":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      currentStepId: event.payload?.id,
+                      stepIndex: workflowStepIndex,
+                      stepStatus: "completed",
+                      output: event.payload?.output,
+                      status: "running",
+                    },
+                  } as BaseEvent);
+                  workflowStepIndex++;
+                  break;
+
+                case "workflow-step-progress":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      currentStepId: event.payload?.id,
+                      stepStatus: "progress",
+                      completedCount: event.payload?.completedCount,
+                      totalCount: event.payload?.totalCount,
+                      status: "running",
+                    },
+                  } as BaseEvent);
+                  break;
+
+                case "workflow-step-suspended":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      currentStepId: event.payload?.id,
+                      stepStatus: "suspended",
+                      status: "paused",
+                    },
+                  } as BaseEvent);
+                  break;
+
+                case "workflow-finish":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      status: "completed",
+                      workflowStatus: event.payload?.workflowStatus,
+                    },
+                  } as BaseEvent);
+                  // Reset for potential next workflow
+                  workflowActivityId = null;
+                  workflowStepIndex = 0;
+                  break;
+
+                case "workflow-canceled":
+                  subscriber.next({
+                    type: EventType.ACTIVITY_SNAPSHOT,
+                    messageId: workflowActivityId,
+                    activityType: "mastra-workflow",
+                    content: {
+                      workflowId: event.workflowId,
+                      status: "canceled",
+                    },
+                  } as BaseEvent);
+                  workflowActivityId = null;
+                  workflowStepIndex = 0;
+                  break;
+              }
+            },
             onTextPart: (text) => {
               const event: TextMessageChunkEvent = {
                 type: EventType.TEXT_MESSAGE_CHUNK,
@@ -263,6 +388,7 @@ export class MastraAgent extends AbstractAgent {
       onFinishMessagePart,
       onToolCallPart,
       onToolResultPart,
+      onDataWorkflowEvent,
       onError,
       onRunFinished,
     }: MastraAgentStreamOptions,
@@ -325,6 +451,11 @@ export class MastraAgent extends AbstractAgent {
                   toolCallId: chunk.payload.toolCallId,
                   result: chunk.payload.result,
                 });
+                break;
+              }
+              case "data-workflow-event": {
+                const data = (chunk as any).data as DataWorkflowEvent;
+                onDataWorkflowEvent?.(data);
                 break;
               }
 

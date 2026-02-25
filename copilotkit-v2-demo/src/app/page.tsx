@@ -126,6 +126,74 @@ function WorkflowStepCard({
   );
 }
 
+/** Mastra Workflow の実ステップ進捗を表示するカード */
+function MastraWorkflowCard({
+  content,
+}: {
+  activityType: string;
+  content: {
+    workflowId?: string;
+    status: string;
+    currentStepId?: string;
+    stepIndex?: number;
+    stepStatus?: string;
+    output?: Record<string, unknown>;
+    completedCount?: number;
+    totalCount?: number;
+    workflowStatus?: string;
+  };
+  message: unknown;
+  agent: unknown;
+}) {
+  if (content.status === "completed" || content.status === "canceled") {
+    return null;
+  }
+
+  return (
+    <div
+      style={{
+        margin: "2px 0",
+        padding: "8px 12px",
+        borderRadius: "10px",
+        border: "1px solid #93c5fd",
+        background: "#eff6ff",
+        fontSize: "13px",
+        fontFamily: "monospace",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            color: "#3b82f6",
+            animation: "wf-spin 1.2s linear infinite",
+            display: "inline-block",
+          }}
+        >
+          {"\u25D4"}
+        </span>
+        <span style={{ fontWeight: 600, color: "#111827" }}>
+          {content.currentStepId ?? content.workflowId ?? "workflow"}
+        </span>
+        {content.stepIndex != null && (
+          <span style={{ fontSize: 11, color: "#9ca3af" }}>
+            step {content.stepIndex + 1}
+          </span>
+        )}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#3b82f6" }}>
+          {content.stepStatus ?? content.status}
+        </span>
+      </div>
+      {content.stepStatus === "progress" &&
+        content.completedCount != null &&
+        content.totalCount != null && (
+          <div style={{ marginTop: 4, fontSize: 11, color: "#6b7280" }}>
+            {content.completedCount}/{content.totalCount}
+          </div>
+        )}
+    </div>
+  );
+}
+
 function DefaultToolRenderer() {
   useDefaultRenderTool();
   return null;
@@ -164,6 +232,21 @@ export default function Home() {
           output: z.string().optional(),
         }),
         render: WorkflowStepCard,
+      },
+      {
+        activityType: "mastra-workflow",
+        content: z.object({
+          workflowId: z.string().optional(),
+          status: z.string(),
+          currentStepId: z.string().optional(),
+          stepIndex: z.number().optional(),
+          stepStatus: z.string().optional(),
+          output: z.record(z.unknown()).optional(),
+          completedCount: z.number().optional(),
+          totalCount: z.number().optional(),
+          workflowStatus: z.string().optional(),
+        }),
+        render: MastraWorkflowCard,
       },
     ],
     [],
